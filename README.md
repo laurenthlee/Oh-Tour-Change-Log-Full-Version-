@@ -1,12 +1,11 @@
 # Sent Task – Google Sheets × LINE OA
 <img width="1174" height="632" alt="image" src="https://github.com/user-attachments/assets/1b7bd9bc-f9ab-462f-b459-c1341af8250a" />
-
 A Google Apps Script project that sends **task updates** from a Google Sheet to a **LINE Official Account (OA)** group.
 
 It supports:
 
 - ✅ Manual sending of selected rows with status **“On request”**
-- ⏰ Automatic sending every day at **07:00** for rows with status **“Pending”** (optional toggle)
+- ⏰ Automatic sending every day at **07:00** for rows with status **“Pending”** (controlled by a toggle in the UI)
 - 👀 Preview dialogs so you can see the exact message before it goes out
 - 🧩 Automatic splitting of long messages to respect LINE’s character limit
 - 🧠 Flexible header detection (supports multiple English/Thai header variants)
@@ -25,25 +24,26 @@ It supports:
 6. [Configuration](#configuration)  
 7. [LINE OA Setup & Secrets](#line-oa-setup--secrets)  
 8. [Usage](#usage)  
-9. [How It Works (Under the Hood)](#how-it-works-under-the-hood)  
-10. [Troubleshooting](#troubleshooting)  
-11. [Recommended Repository Structure](#recommended-repository-structure)  
-12. [License](#license)
+9. [Message Format](#message-format)  
+10. [How It Works (Under the Hood)](#how-it-works-under-the-hood)  
+11. [Troubleshooting](#troubleshooting)  
+12. [Recommended Repository Structure](#recommended-repository-structure)  
+13. [License](#license)
 
 ---
 
 ## Overview
 
-**Sent Task** is built for teams who manage change requests / product updates in Google Sheets and need to send clear, formatted updates to their LINE group.
+**Sent Task** is built for teams who maintain a **task / change log** in Google Sheets and need to send clear, formatted updates to their LINE group.
 
 Typical workflow:
 
-1. You maintain a Sheet of change requests or tasks.
+1. You maintain a Sheet with change requests or tasks.
 2. Each task has a **Status** (e.g. “Pending”, “On request”).
 3. The script:
    - Lets you **manually send** selected “On request” tasks.
-   - Can **automatically send** all “Pending” tasks at 07:00 each day.
-   - Provides a **preview** so nothing surprising gets sent.
+   - Can **automatically send** all “Pending” tasks at 07:00 each day (if the toggle is ON).
+   - Provides a **preview** so you can review text before sending.
 
 ---
 
@@ -51,41 +51,55 @@ Typical workflow:
 
 ### Manual “On request” sending
 
-- UI dialog that lists all rows with status matching **“On request”**.
-- Shows:
-  - Product name
-  - Action detail (monospaced box)
+- Dialog: **Sent Task → ▶ Sent Task - On Request**
+- Shows all rows whose Status matches **“On request”** (case-insensitive, also matches `on   request`).
+- Card for each row:
+  - Checkbox
+  - Product Name
+  - Action details (monospaced box)
   - Direct link back to that row in the sheet
-- You can:
-  - Select/unselect rows
-  - See the **combined LINE message preview**
-  - Click **Send selected** to push everything to a LINE OA group
+- Preview area at the bottom shows the **exact combined LINE message** that will be sent.
+- Buttons:
+  - **Select all**
+  - **Clear**
+  - **Send selected**
 
 ---
 
 ### Auto @ 07:00 “Pending” sending
 
-- Optional mode (toggle in the UI) that:
-  - Installs a **time-based trigger** to run at **07:00** daily.
-  - Each morning:
+- Controlled by a toggle button in **Sent Task - On Request** dialog:
+
+  > Auto daily Pending @7:00: ON / OFF
+
+- When **ON**:
+  - A time-based trigger for `autoSendDaily()` (configured by you) will send a message each day at **07:00**.
+  - `autoSendDaily()`:
     - Finds all rows whose status contains **“pending”**.
-    - Builds a nicely formatted message.
-    - Splits it into chunks if it’s too long.
-    - Pushes it to LINE OA.
-- You can turn this on/off without touching code.
+    - Builds a nicely formatted message with a **Pending Task** header.
+    - Splits the message into chunks if it exceeds LINE length limits.
+    - Sends all chunks to the configured LINE OA group.
+
+- When **OFF**:
+  - `autoSendDaily()` returns immediately and sends **nothing**, even if the trigger runs.
+
+> ⚠️ The toggle only controls a **script property** (`AUTO_SEND_PENDING`).  
+> You still need to create one **time-based trigger** for `autoSendDaily()` in Apps Script.
 
 ---
 
 ### Pending Preview dialog
 
-- Menu item for **“Task Preview – Pending”**.
-- Opens a read-only dialog:
-  - Displays how many matching tasks were found.
-  - Shows the **exact text** that would be sent.
-  - Buttons:
-    - **Copy All**
-    - **Download .txt**
-    - **Close**
+Menu: **Sent Task → ▶ Preview Task - Pending**
+
+- Displays how many Pending rows were found.
+- Shows the **full message text** (including header) that would be sent by `autoSendDaily()`.
+- Buttons:
+  - **Copy All**
+  - **Download .txt**
+  - **Close**
+
+Preview does **not** send anything to LINE.
 
 ---
 
@@ -93,14 +107,14 @@ Typical workflow:
 
 - Uses `CONFIG.LINE_CHAR_LIMIT` (default `4900`) as a safe limit.
 - Splits long text by line (`\n`) when possible so each LINE message is readable.
-- Each chunk is sent using LINE Messaging API via push or broadcast.
+- Each chunk is sent via the LINE Messaging API using **push** to a group or **broadcast**.
 
 ---
 
 ### Robust header detection
 
-- Allows multiple header variations per field (English + Thai).
-- Uses both:
+- Supports multiple English/Thai header variants.
+- Uses:
   - `CONFIG.HEADERS` – primary expected header names
   - `CONFIG.ALT_HEADERS` – alternative header names
 - If required headers are missing, the script throws a clear error instead of silently failing.
@@ -109,13 +123,13 @@ Typical workflow:
 
 ## Requirements
 
-- **Google account** with:
+- Google account with:
   - Access to **Google Sheets**
   - Access to **Google Apps Script**
 - **LINE Official Account** (OA) with:
   - Messaging API enabled
   - Channel access token
-  - A LINE group where the OA account is added
+  - A LINE group where the OA bot is added
 - A **task sheet** with at least these logical columns:
   - Date
   - Request By
@@ -148,35 +162,33 @@ By default, the script assumes:
 | `action`      | `Action`       | `Actions`, `รายละเอียดการเปลี่ยนแปลง`             |
 | `status`      | `Status`       | `Progress`, `สถานะ`                                |
 
-The function `robustIndexMap_()` matches both primary and alternative headers.  
-
-Mandatory logical fields:  
-`status`, `date`, `productName`  
-If any of those can’t be found, the script throws a helpful error.
+Mandatory logical fields: **`status`**, **`date`**, **`productName`**.  
+If any of these cannot be found, the script throws an error with the full header row printed for debugging.
 
 ---
 
 ## Installation
 
-### 1. Create or prepare the sheet
+### 1. Prepare your Sheet
 
-1. Create a new Google Sheet (or use an existing one).
-2. On your **task tab**, ensure you have a header row with the required columns.
-3. Put the headers on **row 1**, or adjust `CONFIG.HEADER_ROW` if you prefer another row.
+1. Create or open the Google Sheet that contains your task / change log.
+2. Ensure your header row contains the required columns (see above).
+3. Place headers on **row 1**, or change `CONFIG.HEADER_ROW` if you use another row.
 
 ---
 
-### 2. Open Apps Script
+### 2. Add the Apps Script
 
-1. In your Sheet, go to **Extensions → Apps Script**.
-2. Delete any default `Code.gs` content.
-3. Create a file (e.g. `main.gs`) and paste the full script from this project.
+1. In the Sheet, go to **Extensions → Apps Script**.
+2. Delete any default code in `Code.gs`.
+3. Create a file (e.g. `main.gs`) and paste the full script (the file you see in this repository).
+4. Click **Save**.
 
 ---
 
 ### 3. Configure `CONFIG`
 
-At the top of the file you will see:
+At the top of the script you’ll see:
 
 ```js
 const CONFIG = {
@@ -184,395 +196,326 @@ const CONFIG = {
   TIMEZONE: 'Asia/Bangkok',
   SHEET_NAME: '',
 
-  LINE_CHAR_LIMIT: 4900,
-  SEPARATOR_LINE: '------------------',
+  // LINE OA
+  OA_CHANNEL_ACCESS_TOKEN: '',
+  OA_GROUP_ID: '',
 
-  TITLES: { onrequest: 'On request', pending: 'Pending' },
+  // Status values
+  STATUS_FILTER_VALUE: 'On request', // manual (Sent Task - On Request)
+  PENDING_STATUS_VALUE: 'Pending',   // auto daily at 07:00
+
+  // Display
+  TITLE: 'On request',
+  SEPARATOR_LINE: '------------------',
+  LINE_CHAR_LIMIT: 4900,
 
   HEADERS: { ... },
-  ALT_HEADERS: { ... },
-
-  PROP_AUTO_PENDING: 'auto_pending_enabled'
+  ALT_HEADERS: { ... }
 };
 ```
----
-Update:
 
-* `HEADER_ROW`
-  Row index containing the headers (e.g. `1`, `2`, …).
+Update the fields:
 
-* `TIMEZONE`
-  Usually `Asia/Bangkok` if your team is based there.
+* `HEADER_ROW` – row number where your headers live (usually `1`).
 
-* `SHEET_NAME`
+* `TIMEZONE` – e.g. `Asia/Bangkok`.
 
-  * Empty string (`''`): use the currently active sheet.
-  * Or set to a specific tab name, e.g. `"Changes"`.
+* `SHEET_NAME`:
 
-* `LINE_CHAR_LIMIT`
-  Max characters per LINE message chunk (recommended ≤ 4900).
+  * `''` → use the **active sheet**.
+  * Or set to a specific tab, e.g. `"Tour Change Log"`.
 
-* `SEPARATOR_LINE`
-  Text separator between task blocks in the message.
+* `STATUS_FILTER_VALUE` – text that means **On request** in your sheet.
 
-* `TITLES`
-  Title line at the top of the message for each kind of send:
+* `PENDING_STATUS_VALUE` – text that means **Pending**.
 
-  * `onrequest`: manual sends
-  * `pending`: auto 07:00 / preview
+* `SEPARATOR_LINE` – text line used between tasks in messages.
 
----
+* `LINE_CHAR_LIMIT` – max chars per LINE message (keep below 5000; 4900 recommended).
 
-### 4. Set Script Properties for secrets
-
-> 🔒 **Never** hard-code real LINE tokens into the script if you plan to commit it to GitHub.
-
-You should store them in **Script Properties** instead.
-
-In the Apps Script editor:
-
-1. Click **Project Settings** (gear icon).
-2. Under **Script properties**, click **Add property**.
-3. Add:
-
-| Property Key              | Example Value                       |
-| ------------------------- | ----------------------------------- |
-| `OA_CHANNEL_ACCESS_TOKEN` | `your-long-channel-access-token`    |
-| `OA_GROUP_ID`             | `Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
-
-These are read by a helper like:
+For a simple setup you can paste your real LINE OA values directly into:
 
 ```js
-function loadSecrets_() {
-  const sp = PropertiesService.getScriptProperties();
-  return {
-    OA_CHANNEL_ACCESS_TOKEN: sp.getProperty('OA_CHANNEL_ACCESS_TOKEN') || '',
-    OA_GROUP_ID:             sp.getProperty('OA_GROUP_ID') || ''
-  };
-}
+  OA_CHANNEL_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
+  OA_GROUP_ID: 'Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
 ```
 
-and used in `sendLineOA_()` (your script should already be wired similarly).
+> 💡 If you plan to put this code on GitHub, see [LINE OA Setup & Secrets](#line-oa-setup--secrets) for a safer Script Properties approach.
 
 ---
 
-### 5. Authorize the script
+### 4. Authorize the script
 
-1. In the Apps Script editor, choose a function like `openPreviewPending` or `pendingAutoSendRunner_` from the dropdown.
+1. In Apps Script, choose a function like `onOpen` or `openPreviewPending` from the dropdown.
 2. Click **Run**.
-3. A Google auth dialog will appear:
-
-   * Review requested permissions (Sheets, external requests, etc.).
-   * Click **Allow**.
+3. Grant the requested permissions.
 
 ---
 
-### 6. Reload the sheet
+### 5. Reload the Sheet
 
-After the script is saved and authorized:
+After saving & authorizing:
 
-* Reload your Sheet.
-* You should see a new menu called **“Sent Task”**.
+* Reload the spreadsheet.
+* You should see a new **Sent Task** menu with:
 
----
-
-## Configuration
-
-### Status detection
-
-Function `matchStatus_()` controls which rows belong to which mode:
-
-```js
-function matchStatus_(cell, kind) {
-  const t = normText_(cell); // lowercased, trimmed
-  if (!t) return false;
-  if (kind === 'pending')   return /pending/.test(t);
-  return /on\s*request/.test(t);
-}
-```
-
-* **Pending** tasks: status contains `pending` (case-insensitive).
-* **On request** tasks: status contains `on request` (with any space pattern).
-
-Change these regexes if your statuses use a different language or wording.
+  * `▶ Preview Task - Pending`
+  * `▶ Sent Task - On Request`
+  * `▶ Test push to group`
 
 ---
 
-### Date formatting
+### 6. Create the auto-send trigger
 
-`normalizeDateDisp_(v, tz)` tries to handle:
+To have auto sending at **07:00**:
 
-* `Date` objects
-* Text in `dd/MM/yyyy` or `yyyy-MM-dd`
-* Excel serial date numbers
+1. In Apps Script, go to **Triggers** (clock icon).
 
-It outputs `d/M/yy` (e.g. `1/1/25`).
+2. Click **+ Add Trigger**.
 
-You can adjust the format inside:
+3. Select:
 
-```js
-Utilities.formatDate(d, tz, 'd/M/yy')
-```
+   * Function: `autoSendDaily`
+   * Event source: **Time-driven**
+   * Type: **Day timer**
+   * Time: **7:00 – 8:00 AM**
 
----
+4. Save.
 
-### Action field formatting
-
-For multi-line `Action` values:
-
-```js
-function formatActionForBlock_(s){
-  const raw = String(s==null?'':s).replace(/\r\n/g,'\n').replace(/\u2028|\u2029/g,'\n');
-  const lines = raw.split('\n').map(x=>x.replace(/\s+$/,''));
-  if (lines.length===0 || (lines.length===1 && !lines[0])) return 'Action: -';
-  if (lines.length===1) return 'Action: ' + lines[0];
-  return 'Action: ' + lines[0] + '\n ' + lines.slice(1).join('\n ');
-}
-```
-
-So the first line appears as:
-
-```text
-Action: First line
-```
-
-and subsequent lines are indented:
-
-```text
- Second line
- Third line
-```
+Now `autoSendDaily()` will run every morning.
+Whether it actually **sends messages** depends on the **AUTO toggle** in the UI.
 
 ---
 
 ## LINE OA Setup & Secrets
 
-### 1. Set up LINE OA
+### Basic (quick) approach – hard-code in `CONFIG`
 
-In [LINE Developers](https://developers.line.biz/):
+For internal use or private scripts, you can simply:
 
-1. Create or select your **Messaging API** channel.
-2. Make sure the bot is **added to your target LINE group**.
-3. Issue a **Channel access token**.
-4. Copy the token.
+1. Get your **Channel Access Token** from LINE Developers.
+2. Get your **groupId** (e.g. `Cbc3fe9748cbbf290bcf82de607c57627`).
+3. Paste them into `CONFIG`:
 
----
+```js
+OA_CHANNEL_ACCESS_TOKEN: 'YOUR_TOKEN_HERE',
+OA_GROUP_ID: 'Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+```
 
-### 2. Get the LINE group ID
+### Safer approach – Script Properties
 
-You need the `groupId` where messages should be pushed. Common approaches:
+If this code lives in a repo, don’t commit real tokens. Instead:
 
-* Use a temporary webhook / debug endpoint to log `groupId` from incoming events.
-* Use existing infra if you already have an endpoint behind your bot.
+1. In Apps Script editor, go to **Project Settings → Script properties → Add property**.
 
-Once you have something like `Cbc3fe9748cbbf290bcf82de607c57627`, store it as `OA_GROUP_ID` in Script Properties.
+2. Add:
 
----
+   | Key                       | Value (example)                     |
+   | ------------------------- | ----------------------------------- |
+   | `OA_CHANNEL_ACCESS_TOKEN` | `your-long-channel-access-token`    |
+   | `OA_GROUP_ID`             | `Cbc3fe9748cbbf290bcf82de607c57627` |
 
-### 3. Security tips
-
-* Treat tokens like passwords.
-* **Never commit** tokens or group IDs to GitHub.
-* If you accidentally expose a token:
-
-  * Immediately revoke / re-issue it in LINE Developers.
-  * Update Script Properties with the new token.
+3. Modify `sendLineOA_()` to read from properties instead of `CONFIG` (optional enhancement).
 
 ---
 
 ## Usage
 
-### Menu items
+### Menu: `▶ Preview Task - Pending`
 
-When the sheet opens, `onOpen()` registers:
+* Shows how many **Pending** tasks exist.
+* Builds and displays the exact message that would be sent:
 
-#### 1. `Sent Task → ▶ Task Preview – Pending`
+  * Includes a **Pending Task** header.
+  * Includes all blocks separated by `SEPARATOR_LINE`.
+* You can:
 
-* Runs `openPreviewPending()`.
-* Steps:
+  * **Copy All**
+  * **Download .txt**
+  * **Close**
 
-  1. Collects rows where status is **Pending**.
-  2. Builds the text for LINE.
-  3. Shows a modal with:
-
-     * Total rows count
-     * Text preview
-     * Buttons:
-
-       * **Copy All**
-       * **Download .txt**
-       * **Close**
-
-This preview does **not** send anything to LINE.
+Nothing is sent to LINE from this dialog.
 
 ---
 
-#### 2. `Sent Task → ▶ Manually sent task`
+### Menu: `▶ Sent Task - On Request`
 
-* Runs `openSendPicker()`.
+* Opens a picker dialog listing all **On request** tasks.
 
-* Shows:
+* Top bar:
 
-  * **Auto 07:00 (Pending)** toggle:
+  * `All: X`
+  * `Selected: Y`
+  * **Auto daily Pending @7:00: ON/OFF** pill
+  * Toggle button **ON/OFF**:
 
-    * Checkbox + ON/OFF pill indicator.
-    * Toggling calls `setAutoPendingEnabled(true/false)` → creates/removes the 07:00 trigger.
+    * Calls `setAutoDailyEnabled(true/false)` to store the flag in Script Properties (`AUTO_SEND_PENDING`).
 
-  * **Cards** for each row with status “On request”:
+* Middle:
+
+  * Cards for each matching row:
 
     * Checkbox
     * Product Name
-    * Link to that row in the sheet (`openUrl`)
-    * Action details in monospaced, scrollable box.
+    * Link `#row` back to the spreadsheet
+    * Action field in a monospaced box
 
-  * Bottom preview area:
+* Bottom:
 
-    * Shows combined message = `head + joined blocks` for selected rows.
+  * Preview of the combined message **including** the **On request Task** header, separator line, and all selected blocks.
 
 * Buttons:
 
-  * `Select all` – checks all cards.
-  * `Clear` – unchecks all cards.
-  * `Send selected` – sends selected rows to LINE via `sendSelected_("onrequest", rows)`.
-  * `Close` – closes the dialog.
+  * **Select all** – checks all rows.
+  * **Clear** – unchecks all rows.
+  * **Send selected** – calls `sendSelectedOnRequest(selectedRows)`.
+  * **Close** – closes the dialog.
 
 ---
 
-### Automatic 07:00 sends (Pending)
+### Menu: `▶ Test push to group`
 
-If auto mode is ON:
-
-* A time-based trigger (`pendingAutoSendRunner_`) runs daily at 07:00.
-* It:
-
-  1. Calls `getRowsForUi_("pending")` to collect Pending rows.
-  2. Builds a `head` (title + separator).
-  3. Joins row `block`s separated by `CONFIG.SEPARATOR_LINE`.
-  4. Sends the text using `splitAndSendToLine_()`.
-
-You can see / manage triggers:
-**Apps Script → Triggers**.
-
----
-
-### Message example
-
-For a single row, the block looks like:
+* Sends a simple test message:
 
 ```text
-Date: 1/1/25
-Request By: Alice
-Product ID: T-001
-Product Name: Amazing Tour
-Platform: Website
-Changed Type: Price
-Impact: High
-Action: Increase price from 1000 → 1200
+[TEST] Kanban Alert connectivity check: <timestamp>
 ```
 
-Multiple blocks are separated by `------------------` (or whatever `SEPARATOR_LINE` you set), preceded by a title:
+* Useful to verify:
+
+  * OA token is valid.
+  * Group ID is correct.
+  * Bot is in the group.
+
+---
+
+## Message Format
+
+### Pending (auto @07:00 + preview)
+
+`buildPendingHead_()` produces:
 
 ```text
-Pending
-------------------
-Date: 1/1/25
-Request By: Alice
-...
+Pending Task
+[dd/MM/yy]
+```
 
+So a full message looks like:
+
+```text
+Pending Task
+[04/11/25]
 ------------------
-Date: 2/1/25
-Request By: Bob
+Date: 1/11/25
+Product ID: T-001
+Product Name: Example Tour
+Platform: Viator
+Changed Type: Price
+Impact: High
+Action: Increase price from 1,000 → 1,200
+Requested By: Alice
+------------------
+Date: 2/11/25
 ...
+```
+
+### On request (manual send)
+
+`buildOnRequestHead_()` produces:
+
+```text
+On request Task
+[dd/MM/yy hh:mm am/pm]
+```
+
+Example:
+
+```text
+On request Task
+[04/11/25 10:30 am]
+------------------
+Date: 4/11/25
+Product ID: T-045
+Product Name: Pattaya Columbia Pictures Aquaverse
+Platform: GYG
+Changed Type: Route
+Impact: Medium
+Action: Change pickup time from 09:00 → 08:30
+Requested By: Nan
 ```
 
 ---
 
 ## How It Works (Under the Hood)
 
-### `getRowsForUi_(kind)`
+### Status matching
 
-* `kind` can be `'pending'` or `'onrequest'`.
-* Flow:
+`hasStatus_(cell, expectedRaw)`:
 
-  1. Get target sheet via `getTargetSheet_()`:
-
-     * If `CONFIG.SHEET_NAME` is set, uses that.
-     * Else, uses the active sheet.
-  2. Read header row and build index map via `robustIndexMap_()`.
-  3. Read all data rows below the header.
-  4. For each row:
-
-     * Check if the status matches `kind` using `matchStatus_()`.
-     * If yes:
-
-       * Normalize fields (dates, text).
-       * Build `obj.block` (the text block for LINE).
-       * Build `obj.openUrl` (link to the row in the sheet).
-  5. Return an array of row objects.
+* Normalizes text (lowercase + trim).
+* For **On request**, allows patterns like `onrequest`, `on    request`.
+* For **Pending**, exact normalized match to `PENDING_STATUS_VALUE` (default `pending`).
 
 ---
 
-### `sendSelected_(kind, pickedRows)`
+### Data collection
 
-* Called from the UI when sending selected rows.
-* Steps:
+`getRowsByStatusForUi_(statusText)`:
 
-  1. Build `head` using `buildHead_(kind)`, e.g.:
+1. Chooses the sheet:
 
-     ```text
-     On request
-     ------------------
-     ```
+   * `SHEET_NAME` if set, otherwise the active sheet.
+2. Reads header row → builds index map via `robustIndexMap_()`.
+3. Reads data rows.
+4. For each row that matches the status:
 
-  2. Join all `pickedRows[i].block` with `SEPARATOR_LINE`.
+   * Normalizes fields.
+   * Builds `obj.block` (the text block shown in LINE).
+   * Builds `obj.openUrl` (link back to the row).
+5. Returns an array of row objects.
 
-  3. Combine into a single large `text`.
-
-  4. Call `splitAndSendToLine_(text, CONFIG.LINE_CHAR_LIMIT)` to send in chunks.
-
----
-
-### `splitAndSendToLine_(text, limit)`
-
-* Splits the text into <= `limit` characters per chunk.
-* Attempts to split at the last newline (`\n`) before the limit.
-* Sends each chunk via `sendLineOA_()`.
-* Returns the number of chunks sent.
+`getOnRequestRowsForUi_()` and `getPendingRowsForUi_()` are just wrappers that call this with different statuses.
 
 ---
 
-### `sendLineOA_(message)`
+### Auto-send
 
-* Loads secrets (OA token and group ID) via Script Properties.
-* Calls LINE Messaging API:
+`autoSendDaily()`:
 
-  * If `OA_GROUP_ID` looks like `C...`:
+1. Reads `AUTO_SEND_PENDING` from Script Properties via `getAutoDailyEnabled()`.
+2. If `false` → returns immediately, sending nothing.
+3. If `true`:
 
-    * Uses `https://api.line.me/v2/bot/message/push` with `to: groupId`.
-  * Otherwise:
-
-    * Uses `https://api.line.me/v2/bot/message/broadcast`.
-* Throws detailed error if the response code is not 2xx, including hints for:
-
-  * `401` – invalid token
-  * `403` – permission/plan issue
-  * `404` – wrong group or bot not in the group
+   * Collects all Pending rows.
+   * Builds header via `buildPendingHead_()`.
+   * Joins blocks with `SEPARATOR_LINE`.
+   * Uses `splitAndSendToLine_()` to send the message safely in chunks.
 
 ---
 
-### Auto toggle
+### Manual send
 
-* `setAutoPendingEnabled(enabled)`:
+`sendSelectedOnRequest(pickedRows)`:
 
-  * Stores flag in Script Properties (`auto_pending_enabled`).
-  * Installs or removes time trigger via:
+1. Builds header via `buildOnRequestHead_()`.
+2. Joins each `row.block` with `SEPARATOR_LINE`.
+3. Prepends header and separator.
+4. Sends via `splitAndSendToLine_()`.
 
-    * `installPendingTrigger_()` – atHour(7).inTimezone(CONFIG.TIMEZONE)
-    * `removePendingTrigger_()`
+---
 
-* `getAutoPendingState_()`:
+### LINE API
 
-  * Reads current state from Script Properties.
+`sendLineOA_(message)`:
+
+* Uses `CONFIG.OA_CHANNEL_ACCESS_TOKEN` and `CONFIG.OA_GROUP_ID`.
+* If `OA_GROUP_ID` starts with `C`, sends a **push** to that group.
+* Otherwise, uses **broadcast**.
+* On error, parses LINE’s JSON and throws a detailed error message with hints for:
+
+  * 401 – invalid/expired token
+  * 403 – plan/permission issue
+  * 404 – wrong group or bot not in the group
 
 ---
 
@@ -580,62 +523,51 @@ Request By: Bob
 
 ### “Header ... not found at row X”
 
-* Check `CONFIG.HEADER_ROW` is correct (usually 1).
-* Confirm your sheet has headers that match either:
+* Check `CONFIG.HEADER_ROW`.
+* Verify your header texts match one of:
 
   * `CONFIG.HEADERS.*`
-  * Or their `CONFIG.ALT_HEADERS.*`
-* Look for:
-
-  * Extra spaces
-  * Non-breaking spaces
-  * Typos
+  * `CONFIG.ALT_HEADERS.*`
+* Watch out for extra spaces or hidden characters (non-breaking space).
 
 ---
 
-### No rows in “Pending” / “On request”
+### Dialog shows “All: 0” or cards missing
 
-* Check your **Status** values.
-* By default:
+* Are your Status values exactly “Pending” or “On request” (or close)?
+* For Pending:
 
-  * Pending mode requires `status` to contain `pending`.
-  * On request mode requires `status` to contain `on request`.
-* Adjust `matchStatus_()` if you use different wording.
+  * `PENDING_STATUS_VALUE` must match your text (“Pending”, “pending”, etc.).
+* For On request:
 
----
-
-### No messages sent at 07:00
-
-* Confirm auto mode is actually enabled:
-
-  * Open **Manually sent task** dialog and see if the pill shows **ON**.
-* Check Apps Script triggers:
-
-  * There should be a time-based trigger for `pendingAutoSendRunner_`.
-* Look at execution log:
-
-  * See if `pendingAutoSendRunner_` ran and whether it found any rows.
+  * Text must contain “on request” (any spacing).
 
 ---
 
-### LINE errors
+### Auto send doesn’t fire at 07:00
 
-Common causes:
+* Check **Apps Script → Triggers**:
+
+  * Verify there is a time-based trigger for `autoSendDaily`.
+* Open **Sent Task - On Request** and verify:
+
+  * The pill shows **Auto daily Pending @7:00: ON**.
+* Check executions / logs for errors.
+
+---
+
+### LINE error codes
 
 * **401 Unauthorized**
 
-  * Invalid or expired `OA_CHANNEL_ACCESS_TOKEN`.
-  * Re-issue token and update Script Properties.
-
-* **404 Not Found**
-
-  * Bot not in that group.
-  * Wrong `OA_GROUP_ID`.
-
+  * Invalid or expired token.
 * **403 Forbidden**
 
-  * Plan or permissions don’t allow this type of push/broadcast.
+  * Plan or permissions do not allow push/broadcast.
+* **404 Not Found**
 
-The script tries to parse LINE’s error message and add hints.
+  * Bot is not in the group or `OA_GROUP_ID` is wrong.
+
+The script surfaces these in the error message.
 
 ---
